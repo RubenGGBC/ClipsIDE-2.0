@@ -1,0 +1,6 @@
+{
+  "ignorePatterns": [
+    "dist",
+    "public/engine/clips.mjs"
+  ]
+}

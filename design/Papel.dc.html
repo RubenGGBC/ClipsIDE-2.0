@@ -1,0 +1,277 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+  <style>
+    :root {
+      --void:#D5D7D2; --chrome:#E0E1DD; --editor:#F1F2EF; --raise:#F1F2EF;
+      --line:#C3C6C2; --text:#0D1B2A; --muted:#415A77; --faint:#778DA9;
+      --gutter:#A7B2BF; --link:#415A77;
+      --primary-bg:#1B263B; --primary-fg:#E0E1DD; --mark:#415A77;
+      --next-edge:#415A77; --next-bg:rgba(65,90,119,0.10);
+      --new:#2E6B5E; --new-bg:rgba(46,107,94,0.10);
+      --gone:#9B4B52; --gone-edge:#C9A9AC;
+      --kind-t:#415A77; --kind-r:#5C7897;
+      --cons:#0D1B2A; --kw:#415A77; --var:#8A5A1E; --str:#2E6B5E;
+      --num:#5C7897; --cm:#8D9AA6; --nm:#1B263B; --arrow:#9B4B52;
+      --p0:#0D1B2A; --p1:#415A77; --p2:#5C7897; --p3:#778DA9;
+    }
+
+    body { margin: 0; background: var(--void); }
+    a { color: var(--link); } a:hover { color: var(--text); }
+
+    .ide {
+      width: 1280px; height: 800px;
+      display: grid;
+      grid-template-rows: 46px 1fr 200px;
+      grid-template-columns: 210px 1fr 320px;
+      grid-template-areas: 'bar bar bar' 'side editor panels' 'side console console';
+      gap: 1px; background: var(--line);
+      font-family: 'IBM Plex Sans', system-ui, sans-serif; font-size: 14px;
+      color: var(--text);
+    }
+    .bar { grid-area: bar; } .side { grid-area: side; }
+    .editor { grid-area: editor; } .panels { grid-area: panels; }
+    .console { grid-area: console; }
+    .bar, .side, .panels, .console { background: var(--chrome); }
+    .editor { background: var(--editor); overflow: hidden; }
+
+    .bar { display: flex; align-items: center; gap: 8px; padding: 0 14px; }
+    .brand { font-weight: 600; letter-spacing: -0.01em; margin-right: 4px; }
+    .brand-v { color: var(--mark); }
+    .spacer { flex: 1; }
+
+    .btn {
+      font: 500 13px/1 'IBM Plex Sans', sans-serif; color: var(--text);
+      background: var(--raise); border: 1px solid var(--line);
+      border-radius: 5px; padding: 7px 12px; cursor: pointer;
+    }
+    .btn-primary { background: var(--primary-bg); color: var(--primary-fg); border-color: var(--primary-bg); font-weight: 600; }
+    .btn-stop { color: var(--gone); border-color: var(--gone-edge); }
+
+    .status { font: 400 12px/1 'IBM Plex Mono', monospace; color: var(--muted); }
+    .status-dirty { color: var(--mark); }
+
+    .head {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 11px; font-weight: 600; color: var(--faint); padding: 12px 14px 6px;
+    }
+    .count { font-family: 'IBM Plex Mono', monospace; font-weight: 400; color: var(--muted); }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 14px 8px; }
+    .chip {
+      border: 1px solid var(--line); border-radius: 4px; background: var(--editor);
+      color: var(--muted); font: 500 11px/1 'IBM Plex Sans', sans-serif;
+      padding: 5px 8px; cursor: pointer;
+    }
+    .hint { margin: 0; padding: 0 14px 4px; font-size: 11px; line-height: 1.5; color: var(--faint); }
+
+    .file {
+      display: block; width: 100%; text-align: left; background: none; border: 0;
+      border-left: 2px solid transparent; padding: 7px 14px; cursor: pointer;
+      font: 400 13px/1 'IBM Plex Mono', monospace; color: var(--muted);
+    }
+    .file-on { color: var(--text); border-left-color: var(--mark); background: var(--editor); }
+
+    .out {
+      display: flex; gap: 8px; align-items: center; width: 100%; text-align: left;
+      background: none; border: 0; padding: 4px 14px; cursor: pointer;
+      font: 400 12px/1.4 'IBM Plex Mono', monospace; color: var(--muted);
+    }
+    .out-k { width: 14px; flex: none; display: inline-flex; align-items: center; }
+    .k-t { color: var(--kind-t); } .k-r { color: var(--kind-r); }
+
+    .code {
+      margin: 0; padding: 10px 0 0;
+      font: 400 13.5px/1.6 'IBM Plex Mono', monospace; color: var(--nm);
+      white-space: pre;
+    }
+    .ln {
+      display: inline-block; width: 46px; padding-right: 14px; text-align: right;
+      color: var(--gutter); user-select: none;
+    }
+    .cm { color: var(--cm); font-style: italic; }
+    .cons { color: var(--cons); font-weight: 600; }
+    .kw { color: var(--kw); }
+    .var { color: var(--var); }
+    .str { color: var(--str); }
+    .num { color: var(--num); }
+    .nm { color: var(--nm); }
+    .op { color: var(--muted); }
+    .arrow { color: var(--arrow); font-weight: 700; letter-spacing: 0.08em; }
+    .p0 { color: var(--p0); } .p1 { color: var(--p1); }
+    .p2 { color: var(--p2); } .p3 { color: var(--p3); }
+
+    .panels { display: flex; flex-direction: column; overflow: hidden; }
+    .panel-agenda { border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+    .panel-facts { flex: 1; }
+
+    .act {
+      display: grid; grid-template-columns: 1fr auto; gap: 2px 8px;
+      width: 100%; text-align: left; background: none; border: 0;
+      border-left: 2px solid transparent; padding: 6px 14px; cursor: pointer;
+      font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--muted);
+    }
+    .act-next { border-left-color: var(--next-edge); background: var(--next-bg); color: var(--text); }
+    .act-rule { font-weight: 500; }
+    .act-sal { color: var(--faint); font-size: 11px; }
+    .act-f { grid-column: 1 / -1; color: var(--faint); font-size: 11px; }
+
+    .filter {
+      margin: 0 14px 8px; width: 292px; padding: 6px 8px;
+      font: 400 12px/1 'IBM Plex Mono', monospace; color: var(--text);
+      background: var(--editor); border: 1px solid var(--line); border-radius: 5px;
+    }
+    .filter::placeholder { color: var(--faint); }
+
+    .grp { padding-bottom: 12px; }
+    .grp-h { display: flex; align-items: baseline; gap: 6px; padding: 8px 14px 4px;
+             font: 500 12px/1 'IBM Plex Mono', monospace; color: var(--kind-t); }
+    .grp-c { color: var(--faint); font-size: 11px; }
+    .tbl { width: 100%; border-collapse: collapse; font: 400 12px/1.5 'IBM Plex Mono', monospace; }
+    .tbl th { text-align: left; font-weight: 400; font-size: 11px; color: var(--faint);
+              padding: 2px 8px 4px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .tbl td { padding: 3px 8px; color: var(--nm); vertical-align: top; }
+    .tbl .ix { width: 46px; padding-left: 14px; text-align: right; color: var(--faint); white-space: nowrap; }
+    .r-new { background: var(--new-bg); }
+    .r-new .ix { color: var(--new); }
+    .r-new td { color: var(--text); }
+    .r-gone { opacity: 0.55; }
+    .r-gone td { color: var(--gone); text-decoration: line-through; }
+
+    .console { display: flex; flex-direction: column; overflow: hidden; }
+    .out-log {
+      flex: 1; margin: 0; padding: 10px 14px; overflow: hidden;
+      font: 400 12.5px/1.55 'IBM Plex Mono', monospace; color: var(--muted);
+      white-space: pre-wrap;
+    }
+    .echo { color: var(--text); }
+    .dim { color: var(--faint); }
+    .prompt { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--line); padding: 11px 14px; }
+    .ps { color: var(--mark); font: 600 12.5px/1 'IBM Plex Mono', monospace; }
+    .ph { color: var(--faint); font: 400 12.5px/1 'IBM Plex Mono', monospace; }
+
+  </style>
+</helmet>
+<div class="ide">
+
+  <header class="bar">
+    <div class="brand">Clips<span class="brand-v">2.0</span></div>
+    <button class="btn btn-primary">Ejecutar</button>
+    <button class="btn">Paso</button>
+    <button class="btn">Reiniciar</button>
+    <button class="btn btn-stop">Detener</button>
+    <div class="spacer"></div>
+    <div class="status">un disparo<span class="status-dirty"> · sin cargar</span></div>
+  </header>
+
+  <aside class="side">
+    <div class="head">Ficheros</div>
+    <div class="chips">
+      <button class="chip">Subir .clp</button>
+      <button class="chip">Nuevo</button>
+      <button class="chip">Descargar</button>
+    </div>
+    <p class="hint">O arrastra tus .clp a la ventana.</p>
+
+    <button class="file file-on">averias.clp</button>
+    <button class="file">caso.clp</button>
+
+    <div class="head">Esquema</div>
+    <button class="out"><span class="out-k k-t"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/><path d="M1.5 4.5h9"/></svg></span><span>sintoma</span></button>
+    <button class="out"><span class="out-k k-t"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1.5" y="1.5" width="9" height="9" rx="1.5"/><path d="M1.5 4.5h9"/></svg></span><span>diagnostico</span></button>
+    <button class="out"><span class="out-k k-r"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5L8.5 6 3 9.5z"/></svg></span><span>bateria-descargada</span></button>
+    <button class="out"><span class="out-k k-r"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5L8.5 6 3 9.5z"/></svg></span><span>sin-combustible</span></button>
+    <button class="out"><span class="out-k k-r"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2.5L8.5 6 3 9.5z"/></svg></span><span>informar</span></button>
+  </aside>
+
+  <main class="editor"><pre class="code"><span class="ln">1</span><span class="cm">; Diagnóstico de un coche que no arranca.</span>
+<span class="ln">2</span><span class="cm">; Pulsa Ejecutar, o Paso para ir regla a regla.</span>
+<span class="ln">3</span>
+<span class="ln">4</span><span class="p0">(</span><span class="cons">deftemplate</span> <span class="nm">sintoma</span>
+<span class="ln">5</span>   <span class="p1">(</span><span class="kw">slot</span> <span class="nm">nombre</span><span class="p1">)</span>
+<span class="ln">6</span>   <span class="p1">(</span><span class="kw">slot</span> <span class="nm">presente</span> <span class="p2">(</span><span class="kw">allowed-values</span> <span class="nm">si no</span><span class="p2">)</span><span class="p1">)</span><span class="p0">)</span>
+<span class="ln">7</span>
+<span class="ln">8</span><span class="p0">(</span><span class="cons">defrule</span> <span class="nm">bateria-descargada</span>
+<span class="ln">9</span>   <span class="p1">(</span><span class="nm">sintoma</span> <span class="p2">(</span><span class="kw">nombre</span> <span class="nm">motor-no-gira</span><span class="p2">)</span> <span class="p2">(</span><span class="kw">presente</span> <span class="var">?estado</span><span class="p2">)</span><span class="p1">)</span>
+<span class="ln">10</span>   <span class="p1">(</span><span class="nm">sintoma</span> <span class="p2">(</span><span class="kw">nombre</span> <span class="nm">luces-debiles</span><span class="p2">)</span> <span class="p2">(</span><span class="kw">presente</span> <span class="nm">si</span><span class="p2">)</span><span class="p1">)</span>
+<span class="ln">11</span>   <span class="arrow">=&gt;</span>
+<span class="ln">12</span>   <span class="p1">(</span><span class="kw">printout</span> <span class="nm">t</span> <span class="str">"Las luces débiles apuntan a la batería."</span> <span class="nm">crlf</span><span class="p1">)</span>
+<span class="ln">13</span>   <span class="p1">(</span><span class="kw">assert</span> <span class="p2">(</span><span class="nm">diagnostico</span> <span class="p3">(</span><span class="kw">causa</span> <span class="nm">bateria</span><span class="p3">)</span><span class="p2">)</span><span class="p1">)</span><span class="p0">)</span>
+<span class="ln">14</span>
+<span class="ln">15</span><span class="p0">(</span><span class="cons">defrule</span> <span class="nm">informar</span>
+<span class="ln">16</span>   <span class="p1">(</span><span class="kw">declare</span> <span class="p2">(</span><span class="kw">salience</span> <span class="num">-10</span><span class="p2">)</span><span class="p1">)</span>
+<span class="ln">17</span>   <span class="var">?d</span> <span class="op">&lt;-</span> <span class="p1">(</span><span class="nm">diagnostico</span> <span class="p2">(</span><span class="kw">causa</span> <span class="var">?c</span><span class="p2">)</span><span class="p1">)</span>
+<span class="ln">18</span>   <span class="arrow">=&gt;</span>
+<span class="ln">19</span>   <span class="p1">(</span><span class="kw">printout</span> <span class="nm">t</span> <span class="str">"Diagnóstico: "</span> <span class="var">?c</span> <span class="nm">crlf</span><span class="p1">)</span>
+<span class="ln">20</span>   <span class="p1">(</span><span class="kw">retract</span> <span class="var">?d</span><span class="p1">)</span><span class="p0">)</span></pre></main>
+
+  <section class="panels">
+
+    <div class="panel panel-agenda">
+      <div class="head">Agenda <span class="count">2</span></div>
+      <button class="act act-next">
+        <span class="act-rule">bateria-descargada</span>
+        <span class="act-sal"></span>
+        <span class="act-f">f-1 f-2</span>
+      </button>
+      <button class="act">
+        <span class="act-rule">informar</span>
+        <span class="act-sal">salience -10</span>
+        <span class="act-f">f-5</span>
+      </button>
+    </div>
+
+    <div class="panel panel-facts">
+      <div class="head">Hechos <span class="count">4</span></div>
+      <input class="filter" value="" placeholder="filtrar por template o contenido" readonly="readonly" />
+
+      <div class="grp">
+        <div class="grp-h"><span class="grp-n">sintoma</span><span class="grp-c">3</span></div>
+        <table class="tbl">
+          <thead><tr><th class="ix"></th><th>nombre</th><th>presente</th></tr></thead>
+          <tbody>
+            <tr><td class="ix">f-1</td><td>motor-no-gira</td><td>si</td></tr>
+            <tr><td class="ix">f-2</td><td>luces-debiles</td><td>si</td></tr>
+            <tr><td class="ix">f-3</td><td>deposito-vacio</td><td>no</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="grp">
+        <div class="grp-h"><span class="grp-n">diagnostico</span><span class="grp-c">2</span></div>
+        <table class="tbl">
+          <thead><tr><th class="ix"></th><th>causa</th><th>confianza</th></tr></thead>
+          <tbody>
+            <tr class="r-new"><td class="ix">f-5</td><td>bateria</td><td>alta</td></tr>
+            <tr class="r-gone"><td class="ix">f-4</td><td>revision</td><td>baja</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <section class="console">
+    <pre class="out-log"><span class="echo">CLIPS&gt; (run 1)</span>
+Las luces débiles apuntan a la batería.
+<span class="dim">==&gt; f-5  (diagnostico (causa bateria) (confianza alta))</span>
+<span class="dim">&lt;== f-4  (diagnostico (causa revision) (confianza baja))</span></pre>
+    <div class="prompt"><span class="ps">CLIPS&gt;</span><span class="ph">(facts)   &#8593; historial</span></div>
+  </section>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

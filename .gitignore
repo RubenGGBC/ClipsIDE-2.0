@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.DS_Store
+
+# Fuentes C de terceros (núcleo CLIPS 6.41) — no se versionan.
+# Descargar de https://sourceforge.net/projects/clipsrules/ y descomprimir
+# el contenido de core/ en packages/engine/vendor/clips/ antes de `make`.
+packages/engine/vendor/
+
+# Artefactos de compilación C / WebAssembly
+packages/engine/build/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.lib

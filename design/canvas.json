@@ -1,0 +1,61 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "A · Monocromo",
+      "x": 0,
+      "y": 0,
+      "w": 1280,
+      "h": 800
+    },
+    {
+      "file": "Acentos.dc.html",
+      "title": "B · Dos acentos",
+      "x": 1360,
+      "y": 0,
+      "w": 1280,
+      "h": 800
+    },
+    {
+      "file": "Papel.dc.html",
+      "title": "C · Papel",
+      "x": 2720,
+      "y": 0,
+      "w": 1280,
+      "h": 800
+    }
+  ],
+  "annotations": [
+    {
+      "id": "brief",
+      "x": 0,
+      "y": -170,
+      "w": 520,
+      "text": "Clips 2.0 — tres direcciones con la paleta 0D1B2A / 1B263B / 415A77 / 778DA9 / E0E1DD.\n\nLa decisión de fondo: la paleta es toda fría, y la pantalla usa el color para decir qué hecho acaba de nacer y cuál se ha retractado. Cada opción resuelve eso de una forma distinta."
+    },
+    {
+      "id": "nota-a",
+      "x": 0,
+      "y": 840,
+      "w": 400,
+      "text": "A · Monocromo\nSolo la paleta y tintes suyos. El estado se lee por brillo y por la barra lateral, no por tono.\nA favor: la más fiel y la más serena.\nEn contra: el código pierde variedad y \"nuevo\" contra \"retractado\" cuesta más de distinguir de un vistazo."
+    },
+    {
+      "id": "nota-b",
+      "x": 1360,
+      "y": 840,
+      "w": 400,
+      "text": "B · Dos acentos\nLa paleta manda en toda la estructura; entran solo dos tonos de su misma familia: oro viejo para lo que espera en la agenda, terracota para lo retractado.\nA favor: el ciclo de inferencia sigue leyéndose de un vistazo.\nEn contra: ya no es paleta pura."
+    },
+    {
+      "id": "nota-c",
+      "x": 2720,
+      "y": 840,
+      "w": 400,
+      "text": "C · Papel\nLa misma paleta invertida: E0E1DD como fondo y 0D1B2A como tinta.\nA favor: se imprime y se captura para entregas sin gastar tinta, y de día cansa menos.\nEn contra: es el cambio más grande respecto a lo que ya tienes funcionando."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
