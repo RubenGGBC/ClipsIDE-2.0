@@ -5,10 +5,17 @@
 
 import type { ClipsFile, Request, RequestBody, Response, Snapshot } from './protocol';
 
+export class ClipsClientError extends Error {
+  readonly name = 'ClipsClientError';
+}
+
 export class ClipsClient {
   private worker: Worker | null = null;
   private nextId = 1;
-  private pending = new Map<number, { resolve: (s: Snapshot) => void; reject: (e: Error) => void }>();
+  private pending = new Map<number, {
+    readonly resolve: (snapshot: Snapshot) => void;
+    readonly reject: (error: Error) => void;
+  }>();
 
   /** Se llama sola en la primera petición y después de cada stop(). */
   private ensureWorker(): Worker {
@@ -22,7 +29,13 @@ export class ClipsClient {
       if (!slot) return;
       this.pending.delete(res.id);
       if (res.ok) slot.resolve(res.snapshot);
-      else slot.reject(new Error(res.error));
+      else slot.reject(new ClipsClientError(res.error));
+    };
+    worker.onerror = () => {
+      this.failWorker(worker, new ClipsClientError('El worker de CLIPS ha fallado'));
+    };
+    worker.onmessageerror = () => {
+      this.failWorker(worker, new ClipsClientError('No se pudo leer la respuesta del worker de CLIPS'));
     };
 
     this.worker = worker;
@@ -35,8 +48,23 @@ export class ClipsClient {
 
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      worker.postMessage({ ...req, id } as Request);
+      const request: Request = { ...req, id };
+      worker.postMessage(request);
     });
+  }
+
+  private failWorker(worker: Worker, error: ClipsClientError): void {
+    if (this.worker !== worker) return;
+    worker.terminate();
+    this.worker = null;
+    this.rejectPending(error);
+  }
+
+  private rejectPending(error: Error): void {
+    for (const slot of this.pending.values()) {
+      slot.reject(error);
+    }
+    this.pending.clear();
   }
 
   load(files: ClipsFile[]) { return this.send({ type: 'load', files }); }
@@ -55,9 +83,6 @@ export class ClipsClient {
   stop(): void {
     this.worker?.terminate();
     this.worker = null;
-    for (const [, slot] of this.pending) {
-      slot.reject(new Error('Ejecución detenida'));
-    }
-    this.pending.clear();
+    this.rejectPending(new ClipsClientError('Ejecución detenida'));
   }
 }

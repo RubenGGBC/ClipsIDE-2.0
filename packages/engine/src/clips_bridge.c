@@ -34,12 +34,34 @@ typedef struct
    size_t capacity;
   } Buffer;
 
-static void BufferInit(Buffer *b)
+static bool BufferInit(Buffer *b)
   {
-   b->capacity = 1024;
-   b->data = (char *) malloc(b->capacity);
-   b->data[0] = '\0';
+   char *data;
+
+   if (b->data != NULL)
+     {
+      b->length = 0;
+      b->data[0] = '\0';
+      return true;
+     }
+
    b->length = 0;
+   b->capacity = 0;
+   data = (char *) malloc(1024);
+   if (data == NULL) return false;
+
+   b->data = data;
+   b->capacity = 1024;
+   b->data[0] = '\0';
+   return true;
+  }
+
+static void BufferDispose(Buffer *b)
+  {
+   free(b->data);
+   b->data = NULL;
+   b->length = 0;
+   b->capacity = 0;
   }
 
 static void BufferReset(Buffer *b)
@@ -48,19 +70,42 @@ static void BufferReset(Buffer *b)
    if (b->data != NULL) b->data[0] = '\0';
   }
 
-static void BufferAppendN(Buffer *b,const char *text,size_t n)
+static bool BufferAppendN(Buffer *b,const char *text,size_t n)
   {
-   if (b->data == NULL) BufferInit(b);
+   size_t required;
 
-   if (b->length + n + 1 > b->capacity)
+   if (b->data == NULL && ! BufferInit(b)) return false;
+
+   if (b->length == (size_t) -1 ||
+       n > (size_t) -1 - b->length - 1)
+     { return false; }
+
+   required = b->length + n + 1;
+
+   if (required > b->capacity)
      {
-      while (b->length + n + 1 > b->capacity) b->capacity *= 2;
-      b->data = (char *) realloc(b->data,b->capacity);
+      size_t newCapacity = b->capacity;
+      char *newData;
+
+      while (required > newCapacity)
+        {
+         if (newCapacity > (size_t) -1 / 2)
+           { newCapacity = required; }
+         else
+           { newCapacity *= 2; }
+        }
+
+      newData = (char *) realloc(b->data,newCapacity);
+      if (newData == NULL) return false;
+
+      b->data = newData;
+      b->capacity = newCapacity;
      }
 
    memcpy(b->data + b->length,text,n);
    b->length += n;
    b->data[b->length] = '\0';
+   return true;
   }
 
 static void BufferAppend(Buffer *b,const char *text)
@@ -158,11 +203,20 @@ EXPORT bool cw_init(void)
   {
    if (theEnv != NULL) return true;
 
-   BufferInit(&captured);
-   BufferInit(&result);
+   if (! BufferInit(&captured)) return false;
+   if (! BufferInit(&result))
+     {
+      BufferDispose(&captured);
+      return false;
+     }
 
    theEnv = CreateEnvironment();
-   if (theEnv == NULL) return false;
+   if (theEnv == NULL)
+     {
+      BufferDispose(&captured);
+      BufferDispose(&result);
+      return false;
+     }
 
    AddRouter(theEnv,CAPTURE_ROUTER,40,
              CaptureQuery,CaptureWrite,
@@ -173,10 +227,14 @@ EXPORT bool cw_init(void)
 
 EXPORT void cw_destroy(void)
   {
-   if (theEnv == NULL) return;
+   if (theEnv != NULL)
+     {
+      DestroyEnvironment(theEnv);
+      theEnv = NULL;
+     }
 
-   DestroyEnvironment(theEnv);
-   theEnv = NULL;
+   BufferDispose(&captured);
+   BufferDispose(&result);
   }
 
 /* ------------------------------------------------------------------ */

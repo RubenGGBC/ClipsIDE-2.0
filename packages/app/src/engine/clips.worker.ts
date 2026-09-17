@@ -21,7 +21,7 @@ interface ModuleOptions {
 /** Dónde se sirven clips.mjs y clips.wasm. */
 const ENGINE_BASE = '/engine/';
 
-type Bridge = {
+export type Bridge = {
   init: () => boolean;
   output: () => string;
   outputClear: () => void;
@@ -92,12 +92,20 @@ function snapshot(b: Bridge, extra: Partial<Snapshot> = {}): Snapshot {
     facts: JSON.parse(b.factsJson()),
     agenda: JSON.parse(b.agendaJson()),
     templates: JSON.parse(b.templatesJson()),
+    operation: { type: 'none' },
     ...extra,
   };
 }
 
-async function handle(req: Request): Promise<Snapshot> {
-  const b = await boot();
+function unexpectedRequest(request: never): never {
+  throw new TypeError(`Petición de worker desconocida: ${String(request)}`);
+}
+
+export async function executeRequest(
+  req: Request,
+  loadBridge: () => Promise<Bridge> = boot,
+): Promise<Snapshot> {
+  const b = await loadBridge();
 
   switch (req.type) {
     case 'load': {
@@ -109,7 +117,7 @@ async function handle(req: Request): Promise<Snapshot> {
         if (!b.load(file.text)) loadOk = false;
       }
       b.reset();
-      return snapshot(b, { loadOk });
+      return snapshot(b, { operation: { type: 'load', ok: loadOk } });
     }
 
     case 'reset': {
@@ -126,26 +134,51 @@ async function handle(req: Request): Promise<Snapshot> {
 
     case 'eval': {
       b.outputClear();
-      b.eval(req.command);
-      return snapshot(b);
+      const evalOk = b.eval(req.command) === 0;
+      return snapshot(b, { operation: { type: 'eval', ok: evalOk } });
     }
 
     case 'snapshot':
       return snapshot(b);
+
+    default:
+      return unexpectedRequest(req);
   }
 }
 
-self.onmessage = async (event: MessageEvent<Request>) => {
-  const req = event.data;
-  try {
-    const result: Response = { id: req.id, ok: true, snapshot: await handle(req) };
-    self.postMessage(result);
-  } catch (err) {
-    const result: Response = {
-      id: req.id,
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-    self.postMessage(result);
-  }
+type RequestExecutor = (request: Request) => Promise<Snapshot>;
+type ResponseSender = (response: Response) => void;
+
+/** La cola empieza antes de execute(), así que también serializa boot(). */
+export function createRequestProcessor(
+  execute: RequestExecutor,
+  sendResponse: ResponseSender,
+): (request: Request) => Promise<void> {
+  let queue = Promise.resolve();
+
+  return (request) => {
+    const process = () => execute(request).then(
+      (result) => {
+        sendResponse({ id: request.id, ok: true, snapshot: result });
+      },
+      (error: unknown) => {
+        sendResponse({
+          id: request.id,
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      },
+    );
+    const next = queue.then(process, process);
+    queue = next;
+    return next;
+  };
+}
+
+const processRequest = createRequestProcessor(executeRequest, (response) => {
+  self.postMessage(response);
+});
+
+self.onmessage = (event: MessageEvent<Request>) => {
+  void processRequest(event.data);
 };

@@ -7,14 +7,17 @@
  * agrupado.
  */
 
-import { describe, expect, it, afterEach, beforeEach } from 'vitest';
+import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import App from './App';
 import { FactsPanel } from './components/FactsPanel';
 import { AgendaPanel } from './components/AgendaPanel';
-import type { FactRow } from './engine/protocol';
+import type { FactRow, OperationResult, Request, Response, Snapshot } from './engine/protocol';
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 // El proyecto se guarda en localStorage, así que sin limpiar entre pruebas
 // los ficheros de una se colarían en la siguiente.
@@ -26,6 +29,57 @@ const fact = (index: number, template: string, slots: Record<string, string>): F
   slots,
   text: `(${template} ...)`,
 });
+
+function engineSnapshot(output: string, operation: OperationResult): Snapshot {
+  return {
+    output,
+    facts: [],
+    agenda: [],
+    templates: [],
+    operation,
+  };
+}
+
+function unexpectedRequest(request: never): never {
+  throw new TypeError(`Petición inesperada en la prueba: ${String(request)}`);
+}
+
+class FailedOperationsWorker {
+  onmessage: ((event: MessageEvent<Response>) => void) | null = null;
+  onerror: ((event: ErrorEvent) => void) | null = null;
+  onmessageerror: ((event: MessageEvent) => void) | null = null;
+
+  postMessage(request: Request): void {
+    switch (request.type) {
+      case 'load':
+        this.respond(request.id, engineSnapshot('ERROR DE CARGA', { type: 'load', ok: false }));
+        return;
+      case 'eval':
+        this.respond(request.id, engineSnapshot('ERROR DE EVALUACIÓN', { type: 'eval', ok: false }));
+        return;
+      case 'run':
+        this.respond(request.id, {
+          ...engineSnapshot('NO DEBE EJECUTARSE', { type: 'none' }),
+          fired: 1,
+        });
+        return;
+      case 'reset':
+      case 'snapshot':
+        this.respond(request.id, engineSnapshot('', { type: 'none' }));
+        return;
+      default:
+        return unexpectedRequest(request);
+    }
+  }
+
+  terminate(): void {}
+
+  private respond(id: number, snapshot: Snapshot): void {
+    this.onmessage?.(new MessageEvent<Response>('message', {
+      data: { id, ok: true, snapshot },
+    }));
+  }
+}
 
 describe('App', () => {
   it('monta con el proyecto de ejemplo y sus controles', () => {
@@ -72,6 +126,45 @@ describe('App', () => {
 
     fireEvent.keyDown(screen.getByRole('tab', { name: 'Consola' }), { key: 'Home' });
     expect(screen.getByRole('tab', { name: 'Código' }).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('mantiene el proyecto modificado y no ejecuta después de una carga inválida', async () => {
+    // Given
+    vi.stubGlobal('Worker', FailedOperationsWorker);
+    render(<App />);
+
+    // When
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Ejecutar' }));
+    });
+
+    // Then
+    expect(screen.getByText('ERROR DE CARGA')).toBeDefined();
+    expect(screen.getByText('modificado')).toBeDefined();
+    expect(screen.queryByText('NO DEBE EJECUTARSE')).toBeNull();
+    expect(screen.getByRole('status').textContent).toContain('error de carga');
+  });
+
+  it('muestra la salida de una evaluación fallida y deja un estado de error', async () => {
+    // Given
+    vi.stubGlobal('Worker', FailedOperationsWorker);
+    render(<App />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Consola' }));
+    const input = document.querySelector<HTMLInputElement>('.console-input input');
+    if (!input) throw new TypeError('La consola no tiene campo de entrada');
+    const form = input.closest('form');
+    if (!form) throw new TypeError('La consola no tiene formulario');
+
+    // When
+    await act(async () => {
+      fireEvent.change(input, { target: { value: '(función-inexistente)' } });
+      fireEvent.submit(form);
+    });
+
+    // Then
+    expect(screen.getByText('ERROR DE EVALUACIÓN')).toBeDefined();
+    expect(screen.getByRole('status').textContent).toContain('error de evaluación');
+    expect(screen.getByRole('status').getAttribute('data-tone')).toBe('error');
   });
 });
 

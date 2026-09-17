@@ -16,6 +16,10 @@ import { EXAMPLE_PROJECT } from './example';
 
 const STORAGE_KEY = 'clips2.project';
 
+function unexpectedOperation(operation: never): never {
+  throw new TypeError(`Resultado de operación desconocido: ${String(operation)}`);
+}
+
 function loadProject(): ClipsFile[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -86,13 +90,14 @@ export default function App() {
     setBusy(true);
     setStatus({ text: label });
     try {
-      apply(await work());
-      return true;
+      const next = await work();
+      apply(next);
+      return next;
     } catch (err) {
       say(err instanceof Error ? err.message : String(err), 'err');
       setStatus({ text: 'detenido', tone: 'error' });
       setDirty(true);
-      return false;
+      return null;
     } finally {
       setBusy(false);
     }
@@ -100,10 +105,26 @@ export default function App() {
 
   const load = useCallback(async () => {
     previousFacts.current = [];
-    const ok = await guard('cargando…', () => client.current.load(files));
-    if (!ok) return false;
-    setDirty(false);
-    return true;
+    const next = await guard('cargando…', () => client.current.load(files));
+    if (!next) return false;
+
+    switch (next.operation.type) {
+      case 'load':
+        if (!next.operation.ok) {
+          setDirty(true);
+          setStatus({ text: 'error de carga', tone: 'error' });
+          return false;
+        }
+        setDirty(false);
+        return true;
+      case 'eval':
+      case 'none':
+        setDirty(true);
+        setStatus({ text: 'respuesta de carga inesperada', tone: 'error' });
+        return false;
+      default:
+        return unexpectedOperation(next.operation);
+    }
   }, [files, guard]);
 
   const handleRun = useCallback(async () => {
@@ -298,8 +319,22 @@ export default function App() {
           disabled={busy}
           onSubmit={async (command) => {
             say(`CLIPS> ${command}`, 'echo');
-            await guard('evaluando…', () => client.current.evaluate(command));
-            setStatus({ text: 'listo' });
+            const next = await guard('evaluando…', () => client.current.evaluate(command));
+            if (!next) return;
+
+            switch (next.operation.type) {
+              case 'eval':
+                setStatus(next.operation.ok
+                  ? { text: 'listo' }
+                  : { text: 'error de evaluación', tone: 'error' });
+                return;
+              case 'load':
+              case 'none':
+                setStatus({ text: 'respuesta de evaluación inesperada', tone: 'error' });
+                return;
+              default:
+                return unexpectedOperation(next.operation);
+            }
           }}
         />}
     />

@@ -11,6 +11,7 @@
 #include <stdbool.h>
 
 extern bool        cw_init(void);
+extern void        cw_destroy(void);
 extern const char *cw_output(void);
 extern void        cw_output_clear(void);
 extern bool        cw_load(const char *text);
@@ -86,6 +87,15 @@ int main(void)
          cw_load("(defrule rota (foo) =>") == false,NULL);
    check("y el error queda capturado como texto",
          strlen(cw_output()) > 0,"la salida estaba vacia");
+
+   cw_destroy();
+   check("cw_destroy libera la salida capturada",
+         strlen(cw_output()) == 0,cw_output());
+   check("cw_init recrea el entorno tras destruirlo",cw_init(),NULL);
+   check("el entorno recreado acepta el programa",cw_load(PROGRAM),cw_output());
+   cw_reset();
+   check("el entorno recreado sigue siendo util",cw_run(1) == 1,NULL);
+   cw_destroy();
 
    printf("\n%s (%d fallos)\n", failures == 0 ? "SPIKE OK" : "SPIKE KO", failures);
    return failures == 0 ? 0 : 1;

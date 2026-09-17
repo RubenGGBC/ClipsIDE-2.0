@@ -30,6 +30,13 @@ export interface TemplateInfo {
   slots: string[];
 }
 
+/** Resultado propio de CLIPS. No se mezcla con Response.ok, que indica si el
+ * worker pudo atender la petición y conservar su correlación. */
+export type OperationResult =
+  | { readonly type: 'none' }
+  | { readonly type: 'load'; readonly ok: boolean }
+  | { readonly type: 'eval'; readonly ok: boolean };
+
 /** Estado completo del motor tras una operación. Devolvemos todo en cada
  *  respuesta a propósito: a escala de prácticas cuesta microsegundos y evita
  *  que la UI tenga que orquestar varias llamadas para pintarse. */
@@ -38,10 +45,9 @@ export interface Snapshot {
   facts: FactRow[];
   agenda: ActivationRow[];
   templates: TemplateInfo[];
+  operation: OperationResult;
   /** Reglas disparadas por la última ejecución, si la hubo. */
   fired?: number;
-  /** false si la carga encontró errores de sintaxis. */
-  loadOk?: boolean;
 }
 
 /** La petición sin el identificador de correlación, que pone el cliente. Va

@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/app/package-lock.json
+
+      - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 3.1.73
+
+      - name: Build and run the native engine spike
+        working-directory: packages/engine
+        run: |
+          make spike
+          ./build/spike
+
+      - name: Install application dependencies
+        working-directory: packages/app
+        run: npm ci
+
+      - name: Lint the application
+        working-directory: packages/app
+        run: npm run lint
+
+      - name: Test the application
+        working-directory: packages/app
+        run: npm test
+
+      - name: Build the WASM engine and application
+        working-directory: packages/app
+        run: |
+          npm run engine:build
+          npm run build
